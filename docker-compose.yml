@@ -1,0 +1,67 @@
+
+services:
+  nginx:
+    build: ./nginx
+    container_name: nginx_cout
+    restart: always 
+    ports:
+      - "80:80"
+    depends_on:
+      - student-mgmt
+      - student-app
+    networks:
+      - mynetwork
+  student-app:
+    build: ./student-app
+    container_name: student-app
+    ports:
+      - "3000:80"
+    depends_on:
+      - student-mgmt
+    networks:
+      - mynetwork
+  postgresql:
+    image: postgres:15
+    container_name: studentdb
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: student_mgmt
+    ports:
+      - "5432:5432"
+    volumes:
+      # init.sql will be executed only the first time DB starts
+      #- /home/ubuntu/volumes/student-mgmt/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - mynetwork
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d student_mgmt"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  student-mgmt:
+    build:
+      context: ./student-mgmt   # must contain your Spring Boot Dockerfile
+    container_name: student-mgmt
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://studentdb:5432/student_mgmt
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+    ports:
+      - "4000:8080"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    networks:
+      - mynetwork
+    restart: always
+
+networks:
+  mynetwork:
+
+volumes:
+  pg-data:
+
